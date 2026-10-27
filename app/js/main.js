@@ -8,6 +8,7 @@ import { parseSTL, buildMeshField } from './stl.js';
 import { THEMES, DEFAULT_THEME, THEME_KEY, vectorIcon, vectorCombineIcon, asciiIcon, asciiCombineIcon, themeShapeColor } from './themes.js';
 import { openPreview, previewOpen } from './preview.js';
 import { createAscii } from './ascii.js';
+import { checkProject, validImage, validMesh } from './project.js';
 
 // ---------------------------------------------------------------- model
 //
@@ -2383,7 +2384,7 @@ function openProjectText(text, name, where, handle = null) {
 }
 
 function load(json, { resetHistory = false } = {}) {
-  const data = typeof json === 'string' ? JSON.parse(json) : json;
+  const data = checkProject(typeof json === 'string' ? JSON.parse(json) : json);
   for (const [k, im] of Object.entries(data.images || {})) images.set(k, im);
   for (const [k, m] of Object.entries(data.meshes || {})) meshes.set(k, m);
   objects = data.objects || [];
@@ -2746,7 +2747,8 @@ function renderList() {
       if (thumb) d.querySelector('.swatch').style.backgroundImage = `url("${thumb}")`;
       if (o.locked) d.title = 'Bloccata nella vista: si seleziona solo da qui';
     } else {
-      d.innerHTML = `<span class="swatch${o.hole ? ' hole' : ''}" style="background:${o.color}"></span><span class="name"></span>`;
+      d.innerHTML = `<span class="swatch${o.hole ? ' hole' : ''}"></span><span class="name"></span>`;
+      d.querySelector('.swatch').style.background = o.color;
     }
     d.querySelector('.name').textContent = o.name;
     d.onclick = e => select(o.id, e.shiftKey || e.metaKey || e.ctrlKey);
@@ -3215,6 +3217,9 @@ function cycleTheme() {
 
 // ---------------------------------------------------------------- start
 
+// Makes the editor installable (icon in the Dock / Start menu) and usable offline.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+
 applyTheme(themeName, { persist: false });
 applySnap();
 const serverUp = fetch(projectsApi()).then(r => r.ok, () => false);
@@ -3230,8 +3235,8 @@ if (legacy) try {
   savedImages = JSON.parse(localStorage.getItem(LEGACY_KEYS.images));
   savedMeshes = JSON.parse(localStorage.getItem(LEGACY_KEYS.meshes));
 } catch { /* storage unavailable */ }
-for (const [k, im] of Object.entries(savedImages || {})) images.set(k, im);
-for (const [k, m] of Object.entries(savedMeshes || {})) meshes.set(k, m);
+for (const [k, im] of Object.entries(savedImages || {})) if (validImage(im)) images.set(k, im);
+for (const [k, m] of Object.entries(savedMeshes || {})) if (validMesh(m)) meshes.set(k, m);
 if (file) ({ name: fileName, where: fileWhere = null, handle: fileHandle = null, saved: savedState } = file);
 try {
   load(saved || { objects: [], nextId: 1 }, { resetHistory: true });

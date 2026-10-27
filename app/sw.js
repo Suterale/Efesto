@@ -4,7 +4,7 @@ const CACHE = 'sdfcad-v1';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/themes.css',
   'js/main.js', 'js/sdf.js', 'js/text.js', 'js/mesher.js', 'js/stl.js', 'js/themes.js', 'js/preview.js',
-  'js/simplify.js', 'js/ascii.js',
+  'js/simplify.js', 'js/ascii.js', 'js/project.js',
   'vendor/three.module.js', 'vendor/addons/OrbitControls.js', 'vendor/addons/TransformControls.js',
   'vendor/fonts/Inter.ttf', 'vendor/fonts/JetBrainsMono.ttf', 'vendor/fonts/Lora.ttf', 'vendor/fonts/Orbitron.ttf',
   'vendor/fonts/Rajdhani-Medium.ttf', 'vendor/fonts/Rajdhani-SemiBold.ttf', 'vendor/fonts/SpaceGrotesk.ttf',
