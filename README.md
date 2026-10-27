@@ -11,9 +11,17 @@ The user interface is currently available in Italian only.
 
 ## Install as an app
 
-Open the editor in Chrome or Edge and click the **Install** icon at the right of the address bar (in Safari:
-**File → Add to Dock**). Efesto then has its own icon and window, and works offline. Projects are saved as
-`.json` files wherever you choose.
+**From the website** (any OS): open https://suterale.github.io/Efesto/ in Chrome or Edge and click the **Install**
+icon at the right of the address bar (in Safari: **File → Add to Dock**). Efesto then has its own icon and window,
+and works offline. Projects are saved as `.json` files wherever you choose.
+
+**From this repository** (macOS, needs Python 3): clone or download the repo, then double-click
+`Installa app Efesto.command`. It creates **Efesto.app** in your Applications folder and offers to add it to the
+Dock. The app starts the local server and opens the editor, with projects saved in the repo's `progetti/` folder.
+If you move the folder, run the installer again.
+
+If macOS refuses to open the `.command` file (it does for downloaded zips), right-click it → **Apri**, or run
+`bash "Installa app Efesto.command"` in Terminal from the repo folder.
 
 ## Editor (app/)
 
