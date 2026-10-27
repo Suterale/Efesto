@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it" data-theme="win95">
+<html lang="it" data-theme="minimal">
 <head>
 <meta charset="utf-8">
 <!-- Only the app's own files may run: script injected through a crafted project file would be blocked. The hash is
@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-<meta name="theme-color" content="#0b7f80">
+<meta name="theme-color" content="#fafafa">
 <meta name="apple-mobile-web-app-title" content="Efesto">
 <style>
   @font-face { font-family: "VT323"; src: url("./vendor/fonts/VT323-Regular.ttf") format("truetype"); font-display: block; }
@@ -142,6 +142,10 @@
   .xyz label[data-axis=Z]::before { color: var(--ax-z); }
   .row .xyz input { padding-left: 16px; }
   .row > * { min-width: 0; }
+  .row > .has-cp { position: relative; }
+  .cp { display: none; position: absolute; right: 0; top: 50%; transform: translateY(-50%); gap: 1px; background: var(--panel, var(--field)); }
+  .row:hover .cp { display: flex; }
+  .cp button { padding: 0 3px; min-height: 18px; line-height: 1; font-size: 12px; }
   input[type=number] { -moz-appearance: textfield; }
   input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
@@ -212,6 +216,7 @@
     <span class="sep"></span>
     <button class="btn" id="btn-pixel" title="Vista 3D a pixel grossi (P)">Pixel</button>
     <button class="btn" id="btn-quality"></button>
+    <button class="btn" id="btn-dark" title="Tema chiaro / scuro (M)" aria-label="Tema chiaro / scuro">☾</button>
     <label class="inline">Stile
       <select id="theme" title="Stile dell'interfaccia (T)"></select>
     </label>

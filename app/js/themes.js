@@ -14,6 +14,22 @@ const SHAPE_COLORS = {
 };
 
 export const THEMES = {
+  minimal: {
+    label: 'Minimal', icons: 'vector',
+    clear: 0xf4f4f5, clearAlpha: 0, plane: 0xffffff,
+    grids: [[100, 0xd4d4d8, 0.35], [20, 0xa1a1aa, 0.8]],
+    hole: [0x71717a, 0.3], outline: 0x2563eb,
+    lit: [0.46, 0.66, 0.26, 0.18], bands: 0, dither: 0, spec: [40, 0.25, 0], rim: [0xffffff, 0.2],
+    shapeColors: { box: '#ef4444', sphere: '#38bdf8', cylinder: '#f59e0b', cone: '#a855f7', torus: '#22c55e' },
+  },
+  dark: {
+    label: 'Minimal (scuro)', icons: 'vector',
+    clear: 0x18181b, clearAlpha: 0, plane: 0x27272a,
+    grids: [[100, 0x52525b, 0.25], [20, 0x71717a, 0.7]],
+    hole: [0xa1a1aa, 0.3], outline: 0x60a5fa,
+    lit: [0.40, 0.72, 0.24, 0.12], bands: 0, dither: 0, spec: [40, 0.3, 0], rim: [0xffffff, 0.15],
+    shapeColors: { box: '#f87171', sphere: '#38bdf8', cylinder: '#fbbf24', cone: '#c084fc', torus: '#4ade80' },
+  },
   win95: {
     label: 'Retro (Win 95)', icons: 'pixel', pixel: true,
     clear: 0x008080, clearAlpha: 1, plane: 0xc0c0c0,
@@ -71,7 +87,7 @@ export const THEMES = {
   },
 };
 
-export const DEFAULT_THEME = 'win95';
+export const DEFAULT_THEME = 'minimal';
 export const THEME_KEY = 'sdfcad.theme';
 
 // ---------------------------------------------------------------- vector icons (24 x 24)

@@ -5,19 +5,77 @@
 label.inline { white-space: nowrap; }
 
 /* Shared by every smooth (non-bitmap) theme. */
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) select {
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) select {
   background-position: right 8px center; padding: 2px 24px 1px 8px; min-height: 26px;
 }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) #top .title::before { image-rendering: auto; }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) #view canvas { image-rendering: auto; }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) .shape-btn { gap: 4px; padding: 6px 2px 5px; }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) .seg .cicon { width: 22px; height: 22px; }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) .cicon { width: 14px; height: 14px; }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) .swatch { border-radius: 3px; }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) input[type=range]::-webkit-slider-runnable-track { border-radius: 99px; }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) :is(#busy, #files) { background: rgba(0, 0, 0, .25); }
-:is([data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) #busy .dlg div::before { animation: none; background: var(--title); border-radius: 50%; animation: pulse .8s ease-in-out infinite alternate; }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) #top .title::before { image-rendering: auto; }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) #view canvas { image-rendering: auto; }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) .shape-btn { gap: 4px; padding: 6px 2px 5px; }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) .seg .cicon { width: 22px; height: 22px; }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) .cicon { width: 14px; height: 14px; }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) .swatch { border-radius: 3px; }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) input[type=range]::-webkit-slider-runnable-track { border-radius: 99px; }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) :is(#busy, #files) { background: rgba(0, 0, 0, .25); }
+:is([data-theme=minimal], [data-theme=dark], [data-theme=cyber], [data-theme=apple], [data-theme=skeu], [data-theme=brutal], [data-theme=y2k]) #busy .dlg div::before { animation: none; background: var(--title); border-radius: 50%; animation: pulse .8s ease-in-out infinite alternate; }
 @keyframes pulse { from { transform: scale(.6); opacity: .5; } to { transform: scale(1); opacity: 1; } }
+
+/* ============================================================== MINIMAL (light) + DARK */
+:root[data-theme=minimal], :root[data-theme=dark] {
+  --r: 6px; --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; --fs: 13px; --lh: 1.35; --smooth: antialiased;
+  --raised: inset 0 0 0 1px var(--line); --sunken: inset 0 0 0 1px var(--line); --pressed: inset 0 0 0 1px var(--line);
+  --title2: var(--title); --h3-bg: transparent; --h3-mark: ""; --dis-shadow: none; --icon-sw: .6;
+  --marquee-a: var(--title); --track-bg: var(--line);
+}
+:root[data-theme=minimal] {
+  --face: #fafafa; --hi: #fff; --lite: #f4f4f5; --shade: #a1a1aa; --dark: #18181b; --line: #e4e4e7;
+  --text: #18181b; --muted: #71717a; --title: #2563eb; --title-text: #fff; --field: #fff; --desk: #f4f4f5; --danger: #dc2626;
+  --btn-bg: #fff; --btn-hover: #f4f4f5; --active-bg: #2563eb; --active-text: #fff; --sel-bg: #dbeafe; --sel-text: #1e3a8a;
+  --focus-bg: #fff; --hint-bg: rgba(255, 255, 255, .92); --hint-text: #18181b; --hint-shadow: 0 0 0 1px #e4e4e7, 0 4px 14px rgba(0, 0, 0, .08);
+  --ax-x: #dc2626; --ax-y: #16a34a; --ax-z: #2563eb; --icon-line: rgba(0, 0, 0, .3); --marquee-b: rgba(37, 99, 235, .15);
+  --view-bg: #f4f4f5;
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2371717a' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+:root[data-theme=dark] {
+  --face: #1c1c1f; --hi: #3f3f46; --lite: #27272a; --shade: #71717a; --dark: #000; --line: #3f3f46;
+  --text: #e4e4e7; --muted: #a1a1aa; --title: #60a5fa; --title-text: #0b1220; --field: #111113; --desk: #18181b; --danger: #f87171;
+  --btn-bg: #27272a; --btn-hover: #3f3f46; --active-bg: #3b82f6; --active-text: #fff; --sel-bg: #1e3a5f; --sel-text: #dbeafe;
+  --focus-bg: #111113; --hint-bg: rgba(28, 28, 31, .92); --hint-text: #e4e4e7; --hint-shadow: 0 0 0 1px #3f3f46, 0 4px 14px rgba(0, 0, 0, .4);
+  --ax-x: #f87171; --ax-y: #4ade80; --ax-z: #60a5fa; --icon-line: rgba(255, 255, 255, .3); --marquee-b: rgba(96, 165, 250, .2);
+  --view-bg: #18181b;
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a1a1aa' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+:is([data-theme=minimal], [data-theme=dark]) :is(#top, .pane) { background: var(--face); }
+:is([data-theme=minimal], [data-theme=dark]) #top { box-shadow: 0 1px var(--line); padding: 4px 10px; }
+:is([data-theme=minimal], [data-theme=dark]) #top .title { font-weight: 600; font-size: 14px; letter-spacing: 0; }
+:is([data-theme=minimal], [data-theme=dark]) #top .title::before { border-radius: 4px; background: var(--title); box-shadow: none; }
+:is([data-theme=minimal], [data-theme=dark]) #top .sep { box-shadow: none; width: 1px; background: var(--line); }
+:is([data-theme=minimal], [data-theme=dark]) #left, :is([data-theme=minimal], [data-theme=dark]) #right { padding: 8px; gap: 8px; background: var(--face); }
+:is([data-theme=minimal], [data-theme=dark]) .pane { border-radius: 8px; padding: 4px 6px 8px; background: var(--lite); }
+:is([data-theme=minimal], [data-theme=dark]) h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 4px 4px 3px; }
+:is([data-theme=minimal], [data-theme=dark]) .btn, :is([data-theme=minimal], [data-theme=dark]) .seg button { transition: background .12s; }
+:is([data-theme=minimal], [data-theme=dark]) .btn:active { padding: 3px 10px 2px; }
+:is([data-theme=minimal], [data-theme=dark]) .btn.primary { --btn-bg: var(--title); --btn-hover: var(--title); color: var(--title-text); box-shadow: none; font-weight: 600; }
+:is([data-theme=minimal], [data-theme=dark]) .btn.primary:hover { filter: brightness(1.08); }
+:is([data-theme=minimal], [data-theme=dark]) .btn.danger { color: var(--danger); }
+:is([data-theme=minimal], [data-theme=dark]) .btn:disabled { opacity: .45; }
+:is([data-theme=minimal], [data-theme=dark]) .btn:focus-visible { outline: 2px solid var(--title); outline-offset: 1px; }
+:is([data-theme=minimal], [data-theme=dark]) select { background-color: var(--btn-bg); box-shadow: var(--raised); }
+:is([data-theme=minimal], [data-theme=dark]) .shape-btn { --btn-bg: var(--face); }
+:is([data-theme=minimal], [data-theme=dark]) #list { background: var(--field); box-shadow: var(--sunken); padding: 2px; }
+:is([data-theme=minimal], [data-theme=dark]) .item { border-radius: 5px; padding: 2px 6px; }
+:is([data-theme=minimal], [data-theme=dark]) :is(.xyz input, .row input[type=text], .row textarea, .row input[type=number]) { min-height: 24px; background: var(--field); }
+:is([data-theme=minimal], [data-theme=dark]) :is(.xyz input, .row input, .row textarea):focus { box-shadow: 0 0 0 2px var(--title); }
+:is([data-theme=minimal], [data-theme=dark]) input[type=range]::-webkit-slider-runnable-track { height: 4px; background: var(--line); box-shadow: none; }
+:is([data-theme=minimal], [data-theme=dark]) input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: var(--title); box-shadow: none; }
+:is([data-theme=minimal], [data-theme=dark]) kbd { background: var(--lite); color: var(--muted); border-radius: 4px; }
+:is([data-theme=minimal], [data-theme=dark]) #view { box-shadow: inset 0 0 0 1px var(--line); }
+:is([data-theme=minimal], [data-theme=dark]) #hint span { border-radius: 99px; padding: 5px 14px; }
+:is([data-theme=minimal], [data-theme=dark]) #marquee { border: 1px solid var(--title); outline: 0; background: var(--marquee-b); }
+:is([data-theme=minimal], [data-theme=dark]) #status { background: var(--face); color: var(--muted); box-shadow: 0 -1px var(--line); }
+:is([data-theme=minimal], [data-theme=dark]) :is(#busy, #files) .dlg { background: var(--face); border-radius: 12px; box-shadow: 0 0 0 1px var(--line), 0 16px 40px rgba(0, 0, 0, .3); padding: 4px; }
+[data-theme=dark] :is(#busy, #files) { background: rgba(0, 0, 0, .5); }
 
 /* ============================================================== CYBERPUNK (Cyberpunk 2077 inventory look) */
 :root[data-theme=cyber] {

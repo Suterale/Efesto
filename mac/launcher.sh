@@ -13,6 +13,8 @@ alert() { osascript -e "display alert \"Efesto\" message \"$1\" as critical" >/d
 running() { [ "$(curl -s -o /dev/null -w '%{http_code}' "${URL}api/projects")" = 200 ]; }
 
 if ! running; then
+  # The Desktop, Documents and Downloads folders are protected: this asks macOS for access the first time.
+  ls "$DIR" 2>&1 >/dev/null | grep -q "not permitted" && alert "macOS non permette a Efesto di aprire $DIR. Consenti l'accesso in Impostazioni di Sistema → Privacy e sicurezza → File e cartelle → Efesto, poi riavvia Efesto."
   [ -f "$DIR/server.py" ] || alert "Cartella di Efesto non trovata: $DIR. Se l'hai spostata, esegui di nuovo \"Installa app Efesto\"."
   python3 -c '' 2>/dev/null || alert "Serve Python 3. Installalo da https://www.python.org/downloads/ e riprova."
   lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1 && alert "La porta $PORT è occupata da un altro programma."

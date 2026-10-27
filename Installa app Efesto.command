@@ -20,6 +20,11 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>NSDesktopFolderUsageDescription</key><string>Efesto salva e apre i progetti nella sua cartella.</string>
+  <key>NSDocumentsFolderUsageDescription</key><string>Efesto salva e apre i progetti nella sua cartella.</string>
+  <key>NSDownloadsFolderUsageDescription</key><string>Efesto salva e apre i progetti nella sua cartella.</string>
+  <key>NSRemovableVolumesUsageDescription</key><string>Efesto salva e apre i progetti nella sua cartella.</string>
+  <key>NSNetworkVolumesUsageDescription</key><string>Efesto salva e apre i progetti nella sua cartella.</string>
 </dict>
 </plist>
 EOF
@@ -29,6 +34,8 @@ cat mac/Efesto.icns > "$APP/Contents/Resources/Efesto.icns"
 printf '%s' "$DIR" > "$APP/Contents/Resources/efesto-dir"
 chmod +x "$APP/Contents/MacOS/Efesto"
 xattr -cr "$APP" 2>/dev/null
+# Ad-hoc signature: macOS remembers the permission to read the Desktop/Documents folder only for a signed app.
+codesign --force --sign - "$APP" 2>/dev/null
 touch "$APP"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" 2>/dev/null
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { TransformControls } from 'three/addons/TransformControls.js';
-import { buildGLSL, compileJS, layout, MAX_NODES, MAX_MESH_TEX, sceneBounds, structureKey, textSlots, meshSlots } from './sdf.js';
+import { buildGLSL, compileJS, layout, MAX_NODES, MAX_MESH_TEX, sceneBounds, stackDepth, stackLevels, structureKey, textSlots, meshSlots } from './sdf.js';
 import { FONTS, DEFAULT_FONT, textField, fontReady, loadFont, preloadFonts } from './text.js';
 import { surfaceNets, toSTL } from './mesher.js';
 import { parseSTL, buildMeshField } from './stl.js';
@@ -294,6 +294,8 @@ varying vec2 vNdc;
 void main() { vNdc = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }
 `;
 
+// Distances the baked scene grid keeps, in cells: enough for the march's leaps and the occlusion samples.
+const GRID_CAP = 24;
 const FRAG = /* glsl */`
 uniform mat4 uCamWorld, uProjInv, uProj, uView;
 uniform vec3 uBMin, uBMax;
@@ -335,7 +337,12 @@ float calcAO(vec3 p, vec3 n) {
   float occ = 0.0, w = 1.0;
   for (int i = 1 + uZero; i <= 5 + uZero; i++) {
     float h = 0.6 * float(i) * float(i);
-    occ += (h - map(p + n * h)) * w;
+    vec3 q = p + n * h;
+    // The far samples only need a rough distance, and reach the most shapes: the baked grid has it, when it
+    // is up to date and they fall within the distances it keeps. Outside the grid, add the way back to it.
+    bool rough = i >= 3 + uZero && uGridA.w > 0.5 && h < uGridB.w * ${GRID_CAP}.0 * 0.9;
+    vec3 g = clamp(q, uBMin, uBMin + uGridA.xyz);
+    occ += (h - (rough ? textureLod(uGrid, (g - uBMin) / uGridA.xyz, 0.0).r + length(q - g) : map(q))) * w;
     w *= 0.6;
   }
   return clamp(1.0 - 0.06 * occ, 0.0, 1.0);
@@ -364,9 +371,10 @@ void main() {
   for (int i = 0; i < uMaxSteps; i++) {
     vec3 pp = ro + rd * t;
     if (uGridA.w > 0.5) {
-      // Far from every surface the baked field is enough (minus its worst-case interpolation error).
+      // Far from every surface the baked field is enough (minus its worst-case interpolation error). Closer in
+      // that margin would shrink the leaps to nothing, so the exact distance takes over.
       float g = textureLod(uGrid, clamp((pp - uBMin) / uGridA.xyz, 0.0, 1.0), 0.0).r * 0.99 - uGridB.w * 1.8 - 0.01;
-      if (g > 0.0) {
+      if (g > uGridB.w * 2.0) {
         t += g * 0.9;
         if (t > tb.y) break;
         continue;
@@ -414,14 +422,14 @@ const nodeData = new Float32Array(NODE_TEXELS * MAX_NODES * 4);
 const nodeTexture = new THREE.DataTexture(nodeData, NODE_TEXELS, MAX_NODES, THREE.RGBAFormat, THREE.FloatType);
 nodeTexture.minFilter = nodeTexture.magFilter = THREE.NearestFilter;
 
-function makeShaderMaterial(nodes) {
+function makeShaderMaterial(nodes, levels) {
   const textures = Object.fromEntries([
     ...[...textSlots(nodes).values()].map(k => [`uT${k}`, { value: null }]),
-    ...[...meshSlots(nodes).values()].map(k => [`uV${k}`, { value: null }]),
+    ...Array.from({ length: MAX_MESH_TEX }, (_, k) => [`uV${k}`, { value: null }]),
   ]);
   return new THREE.ShaderMaterial({
     vertexShader: VERT,
-    fragmentShader: buildGLSL(nodes) + FRAG,
+    fragmentShader: buildGLSL(nodes, levels) + FRAG,
     uniforms: {
       uNodes: { value: nodeTexture }, uCount: { value: 0 },
       ...textures,
@@ -449,11 +457,11 @@ function makeShaderMaterial(nodes) {
  * first one it happens in the background: the previous picture stays up (and the UI responsive) until the
  * new program is ready. Returns false while that is the case, i.e. the uniforms must not be written yet.
  */
-function rebuildShaderIfNeeded(nodes) {
-  const key = structureKey(nodes);
+function rebuildShaderIfNeeded(nodes, levels) {
+  const key = structureKey(nodes, levels);
   if (key === shaderKey) return !shaderPending;
   shaderKey = key;
-  const material = makeShaderMaterial(nodes);
+  const material = makeShaderMaterial(nodes, levels);
   if (!quad.material.isShaderMaterial) {
     quad.material = material;
     shaderPending = false;
@@ -575,6 +583,17 @@ function meshField(key) {
   return null;
 }
 
+/**
+ * The document's combinations as the kernel would get them with every group open (type, hole, blend and
+ * children only), so the shader's stack fits the deepest one whether or not it is folded right now.
+ */
+function comboTree(parentId = null) {
+  return childrenOf(parentId).flatMap(o => isImage(o) ? []
+    : !isGroup(o) ? [{ type: o.type, hole: o.hole, blend: o.blend }]
+    : o.mode === 'group' ? comboTree(o.id)
+    : [{ type: o.mode, hole: o.hole, blend: o.blend, children: comboTree(o.id) }]);
+}
+
 /** The whole scene in the form the SDF kernel expects, optionally leaving out one object. */
 function kernelObjects(skip = null, lod = false) {
   scene.updateMatrixWorld();
@@ -689,7 +708,8 @@ function runBakes() {
     made = true;
   }
   wantedBakes = new Map();
-  if (made) render();   // redraw with the baked nodes
+  // Redraw with the baked nodes. They are the same solid, so the scene grid stays as it is.
+  if (made) { sceneDirty = true; queueFrame(); }
 }
 
 /** Bake nodes (in the frame they will be drawn in) with the scene shader; null when there is nothing solid. */
@@ -739,7 +759,7 @@ function updateSceneUniforms() {
   wantedBakes = new Map();
   const ko = resolveBaked(kernelObjects(null, true));
   scheduleBakes();
-  if (!rebuildShaderIfNeeded(ko)) return;
+  if (!rebuildShaderIfNeeded(ko, stackLevels(stackDepth(comboTree())))) return;
   writeNodes(ko);
   const u = quad.material.uniforms;
   const b = sceneBounds(ko);
@@ -768,7 +788,7 @@ function writeNodes(ko) {
       set(4, k.blend || 0, 0, 0, 0);
       set(5, 0, 0, 0, 2 + (k.hole ? 1 : 0) + (k.type === 'intersect' ? 4 : 0));
       set(6, Math.min(end, count), 0, 0, 0);
-      set(7, 0, 0, 0, -1);
+      set(7, ...(sphere ?? [0, 0, 0, -1]));
       continue;
     }
     const m = k.inv;
@@ -795,6 +815,7 @@ function writeNodes(ko) {
   nodeTexture.needsUpdate = true;
   u.uCount.value = count;
   for (const [k, slot] of textSlots(ko)) u[`uT${slot}`].value = fieldTexture(k.field);
+  for (let k = 0; k < MAX_MESH_TEX; k++) u[`uV${k}`].value = null;   // a dropped bake must not stay bound
   for (const [f, slot] of meshSlots(ko)) u[`uV${slot}`].value = meshTexture(f);
 }
 
@@ -928,9 +949,10 @@ function bakeGrid() {
     grid = { dims, target };
   }
   u.uGridB.value.set(...dims, cell);
-  u.uCap.value = cell * 24;
+  u.uCap.value = cell * GRID_CAP;
   u.uGridA.value.set(dims[0] * cell, dims[1] * cell, dims[2] * cell, 0);
-  u.uGrid.value = grid.target.texture;
+  // Never bound while it is drawn into: WebGL refuses a draw that could read the texture it writes.
+  u.uGrid.value = null;
   bakeQuad.material = quad.material;
   const previous = renderer.getRenderTarget();
   for (let z = 0; z < dims[2]; z++) {
@@ -941,6 +963,7 @@ function bakeGrid() {
   renderer.setRenderTarget(previous);
   u.uBake.value = 0;
   u.uCap.value = 1e10;
+  u.uGrid.value = grid.target.texture;
   gridValid = true;
   queueFrame();
 }
@@ -1060,7 +1083,8 @@ transform.addEventListener('dragging-changed', e => {
 });
 transform.addEventListener('mouseDown', beginScaleDrag);
 transform.addEventListener('objectChange', () => {
-  if (pivotMode) previewPivotDrag();
+  if (multiStart) { if (transform.mode === 'scale') multiHandle.position.copy(multiStart.center); previewMulti(); }
+  else if (pivotMode) previewPivotDrag();
   else if (transform.mode === 'scale') { applyOneSidedScale(); keepImageAspect(); }
   updatePanelValues();
 });
@@ -1177,8 +1201,61 @@ function applySnap() {
   transform.setRotationSnap(v > 0 ? deg(15) : null);
 }
 
+// With several objects selected the gizmo drives an empty handle at the middle of the selection
+// (in the parent's frame); every object follows the handle's move, rotation and scale about that point.
+const multiHandle = new THREE.Object3D();
+let multiStart = null;   // { center, items: [{ o, m }] } as the handle was placed
+
+function attachGizmo() {
+  multiHandle.removeFromParent();
+  multiStart = null;
+  const o = selected();
+  if (o) return transform.attach(views.get(o.id).group);
+  const items = selectedObjects();
+  if (items.length < 2) return transform.detach();
+  const parent = parentOf(items[0]);
+  scene.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  for (const it of items) box.expandByObject(views.get(it.id).group);
+  const host = parent ? views.get(parent).group : scene;
+  const center = host.worldToLocal(box.getCenter(new THREE.Vector3()));
+  host.add(multiHandle);
+  multiHandle.position.copy(center);
+  multiHandle.quaternion.identity();
+  multiHandle.scale.set(1, 1, 1);
+  multiStart = { center, items: items.map(it => ({ o: it, m: localMatrix(it) })) };
+  transform.attach(multiHandle);
+}
+
+/** Each selected object's new matrix in its parent's frame, for the handle's current pose. */
+function multiPose(it) {
+  const G = new THREE.Matrix4().compose(multiHandle.position, multiHandle.quaternion, ONE);
+  const S = new THREE.Matrix4().makeScale(multiHandle.scale.x, multiHandle.scale.y, multiHandle.scale.z);
+  const back = new THREE.Matrix4().makeTranslation(-multiStart.center.x, -multiStart.center.y, -multiStart.center.z);
+  return G.multiply(S).multiply(back).multiply(it.m);
+}
+
+function previewMulti() {
+  if (!multiStart) return;
+  for (const it of multiStart.items) {
+    const { group } = views.get(it.o.id);
+    multiPose(it).decompose(group.position, group.quaternion, group.scale);
+  }
+}
+
 /** Bake the gizmo's position / rotation / scale back into the selected object's data. */
 function commitGizmo() {
+  if (multiStart) {
+    for (const it of multiStart.items) {
+      const s = setPose(it.o, multiPose(it));
+      if (isGroup(it.o)) bakeScale(it.o, s);
+      else scaleShape(it.o, s);
+    }
+    syncAll();
+    commit();
+    attachGizmo();
+    return;
+  }
   const o = selected();
   if (!o) return;
   const { group } = views.get(o.id);
@@ -1603,9 +1680,7 @@ function setSelection(ids) {
   else if (entered != null && !byId(entered)) entered = null;
   if (entered !== before) { objects.forEach(syncView); sceneDirty = true; }   // an open group is drawn live, a folded one baked
   updateOutlines();
-  const o = selected();
-  if (o) transform.attach(views.get(o.id).group);
-  else transform.detach();
+  attachGizmo();
   renderPanel();
   renderList();
   queueFrame();   // selecting does not change the solid: keep the baked grid
@@ -1946,9 +2021,22 @@ function deleteSelected() {
   commit();
 }
 
+/** Parent-space transform of an object's position and rotation. */
+const poseMatrix = o => new THREE.Matrix4().compose(
+  new THREE.Vector3(...o.pos),
+  new THREE.Quaternion().setFromEuler(new THREE.Euler(...o.rot.map(deg))),
+  new THREE.Vector3(1, 1, 1));
+
+/** Source/copy id pairs of the last duplicate, so duplicating the copies again can repeat the step. */
+let lastDup = null;
+
 function duplicateSelected() {
   const items = selectedObjects();
   if (!items.length) return;
+  // Duplicating the copies of the last duplicate: repeat whatever move/rotation the user gave them.
+  const ids = new Set(selectedIds);
+  const chain = lastDup && lastDup.length === items.length && lastDup.every(([, c]) => ids.has(c))
+    ? new Map(lastDup.map(([s, c]) => [c, objects.find(o => o.id === s)])) : null;
   const copy = (o, parent) => {
     const c = { ...structuredClone(o), id: nextId++, parent };
     objects.push(c);
@@ -1958,9 +2046,20 @@ function duplicateSelected() {
   const copies = items.map(o => {
     const c = copy(o, parentOf(o));
     c.name = o.name + ' copia';
-    c.pos = [o.pos[0] + 10, o.pos[1] + 10, o.pos[2]];
+    const prev = chain?.get(o.id);
+    if (prev && parentOf(prev) === parentOf(o)) {
+      // New pose = (current pose * previous pose^-1) applied to the current pose.
+      const cur = poseMatrix(o);
+      const m = cur.clone().multiply(poseMatrix(prev).invert()).multiply(cur);
+      const p = new THREE.Vector3(), q = new THREE.Quaternion();
+      m.decompose(p, q, new THREE.Vector3());
+      c.pos = p.toArray().map(round3);
+      const e = new THREE.Euler().setFromQuaternion(q);
+      c.rot = [e.x, e.y, e.z].map(r => round3(rad2deg(r)));
+    }
     return c;
   });
+  lastDup = items.map((o, i) => [o.id, copies[i].id]);
   rebuildViews();
   setSelection(copies.map(c => c.id));
   commit();
@@ -2058,28 +2157,27 @@ function worldBox(o) {
 }
 
 /**
- * Align the selection along one world axis. 'min' | 'center' | 'max' line everything up on the
- * selection's overall bounds; 'touch-' | 'touch+' stack the others against the first selected object
- * on its − or + side. Other axes stay as they are.
+ * Align the selection along one world axis. The first selected object stays where it is; every other
+ * one moves: 'min' | 'center' | 'max' line it up with the first one's bounds, 'touch-' | 'touch+'
+ * stack it against the first one's − or + side. Other axes stay as they are.
  */
 function alignSelected(axis, how) {
-  const items = selectedObjects();
+  const items = selectedIds.map(byId).filter(Boolean);
   const boxes = new Map(items.map(o => [o, worldBox(o)]));
-  const valid = items.filter(o => !boxes.get(o).isEmpty());
-  if (valid.length < 2) return;
+  const ref = items[0];
+  if (items.length < 2 || boxes.get(ref).isEmpty()) return;
   const c = ['x', 'y', 'z'][axis];
-  const ref = selectedIds.map(byId).find(o => valid.includes(o));
-  const all = valid.reduce((a, o) => a.union(boxes.get(o)), new THREE.Box3());
+  const r = boxes.get(ref);
   const mid = b => (b.min[c] + b.max[c]) / 2;
-  valid.forEach(o => {
+  items.slice(1).forEach(o => {
     const b = boxes.get(o);
+    if (b.isEmpty()) return;
     let d;
-    if (how === 'min') d = all.min[c] - b.min[c];
-    else if (how === 'max') d = all.max[c] - b.max[c];
-    else if (how === 'center') d = mid(all) - mid(b);
-    else if (o === ref) return;
-    else if (how === 'touch-') d = boxes.get(ref).min[c] - b.max[c];
-    else d = boxes.get(ref).max[c] - b.min[c];
+    if (how === 'min') d = r.min[c] - b.min[c];
+    else if (how === 'max') d = r.max[c] - b.max[c];
+    else if (how === 'center') d = mid(r) - mid(b);
+    else if (how === 'touch-') d = r.min[c] - b.max[c];
+    else d = r.max[c] - b.min[c];
     if (!d) return;
     const { group } = views.get(o.id);
     const p = group.getWorldPosition(new THREE.Vector3());
@@ -2904,7 +3002,7 @@ function renderImagePanel(el, o) {
   wirePanel(el, o);
 }
 
-/** Align section of the multi-selection panel: per axis, Min / Centre / Max and Touch − / +. */
+/** Align section of the multi-selection panel: per axis, Min / Centre / Max and Touch − / + against the first selected. */
 function alignButtons() {
   const axes = [['X', 'sinistra / destra'], ['Y', 'dietro / davanti'], ['Z', 'sotto / sopra']];
   const btn = (i, how, label) => `<button data-axis="${i}" data-align="${how}">${label}</button>`;
@@ -2921,11 +3019,12 @@ function renderMultiPanel(el) {
     <div class="note">Gruppo: si muovono insieme · Unione: un solido unico · Intersezione: solo la parte in comune. <kbd>⌘G</kbd> raggruppa.</div>
     <h3>Allinea</h3>
     ${alignButtons()}
-    <div class="note">Tocca: affianca gli altri alla prima forma selezionata. Gli altri assi non cambiano.</div>
+    <div class="note">La prima forma selezionata (<b id="align-ref"></b>) resta ferma; le altre si allineano a lei. Gli altri assi non cambiano.</div>
     <div class="actions">
       <button class="btn" id="act-dup">Duplica</button>
       <button class="btn danger" id="act-del">Elimina</button>
     </div>`;
+  el.querySelector('#align-ref').textContent = byId(selectedIds[0]).name;
   el.querySelectorAll('[data-align]').forEach(b => b.onclick = () => alignSelected(+b.dataset.axis, b.dataset.align));
   el.querySelectorAll('[data-combine]').forEach(b => b.onclick = () => groupSelected(b.dataset.combine));
   el.querySelector('#act-dup').onclick = duplicateSelected;
@@ -2938,6 +3037,7 @@ function wirePanel(el, o) {
     input.addEventListener('change', () => { applyInput(input); commit(); });
   });
   wireEdgeRows(el, o);
+  wireCopyPaste(el);
   el.querySelectorAll('[data-hole]').forEach(b => b.onclick = () => {
     if (o.hole !== (b.dataset.hole === '1')) toggleHole();
   });
@@ -2964,6 +3064,34 @@ function wirePanel(el, o) {
   on('#act-dup', duplicateSelected);
   on('#act-del', deleteSelected);
   updatePanelValues();
+}
+
+let vecClip = null;   // last copied x/y/z triple, for when the system clipboard can't be read
+
+/** Add hover copy / paste buttons to each x/y/z row (position, rotation, size, pivot). */
+function wireCopyPaste(el) {
+  el.querySelectorAll('.row > .xyz').forEach(xyz => {
+    const inputs = [...xyz.querySelectorAll('input[data-key]')];
+    const label = xyz.previousElementSibling;
+    if (!inputs.length || !label) return;
+    label.classList.add('has-cp');
+    label.insertAdjacentHTML('beforeend', `<span class="cp"><button data-cp="copy" title="Copia i valori">⧉</button><button data-cp="paste" title="Incolla i valori">⎘</button></span>`);
+    label.querySelector('[data-cp=copy]').onclick = () => {
+      vecClip = inputs.map(i => parseFloat(i.value) || 0);
+      navigator.clipboard?.writeText(vecClip.join(' ')).catch(() => {});
+      status(`Copiato: ${vecClip.join(', ')}`);
+    };
+    label.querySelector('[data-cp=paste]').onclick = async () => {
+      let text = '';
+      try { text = await navigator.clipboard.readText(); } catch { /* fall back to the last copy */ }
+      let v = text.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number);
+      if (!v || v.length < inputs.length) v = vecClip;
+      if (!v || v.length < inputs.length) return status('Niente da incollare: copia prima tre valori.');
+      inputs.forEach((input, i) => { input.value = v[i]; applyInput(input); });
+      commit();
+      updatePanelValues();
+    };
+  });
 }
 
 /** Write current values (including live gizmo state) into the panel inputs. */
@@ -3165,6 +3293,7 @@ window.addEventListener('keydown', e => {
     case 'p': if (!theme.ascii) togglePixel(); break;
     case 'v': cycleRenderQuality(); break;
     case 't': cycleTheme(); break;
+    case 'm': toggleDark(); break;
     case 'l': lay ? layExit() : layEnter(); break;
     case 'escape': lay ? layExit() : exitGroup(); break;   // cancel Lay, or step out of a group
     case 'delete': case 'backspace': e.preventDefault(); deleteSelected(); break;
@@ -3182,6 +3311,7 @@ function applyTheme(name, { persist = true } = {}) {
   theme = THEMES[name];
   document.documentElement.dataset.theme = name;
   themeSelect.value = name;
+  darkBtn.textContent = name === 'dark' ? '☀' : '☾';
   renderer.setClearColor(theme.clear, theme.clearAlpha);
   plane.material.color.set(theme.plane);
   holeMat.color.set(theme.hole[0]);
@@ -3208,6 +3338,9 @@ function applyTheme(name, { persist = true } = {}) {
   if (changed) refreshAll();
   resize();
 }
+const darkBtn = document.getElementById('btn-dark');
+function toggleDark() { applyTheme(themeName === 'dark' ? 'minimal' : 'dark'); }
+darkBtn.onclick = () => { toggleDark(); darkBtn.blur(); };
 themeSelect.onchange = () => { applyTheme(themeSelect.value); themeSelect.blur(); };
 
 function cycleTheme() {

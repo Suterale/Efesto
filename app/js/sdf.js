@@ -316,22 +316,25 @@ float sdText(vec3 p, vec3 h, vec4 x, sampler2D t) {
   float dz = abs(p.z) - h.z;
   return min(max(d2, dz), 0.0) + length(max(vec2(d2, dz), 0.0));
 }
-// x: (mesh size mm, cell mm); t: the mesh's distance field in mm (see sdMesh in the JS evaluator).
-float sdMesh(vec3 p, vec3 h, vec4 x, highp sampler3D t) {
+// 3D texture k: an imported mesh (its distance field in mm, see sdMesh in the JS evaluator) or a baked group
+// ((distance mm, rgb), never stretched: h is half of x). x: (content size mm, cell mm). Returns (rgb, distance);
+// a mesh's rgb means nothing.
+vec4 sdVol(int k, vec3 p, vec3 h, vec4 x) {
   vec3 s = 2.0 * h / x.xyz;
-  float k = min(s.x, min(s.y, s.z));
-  vec3 q = p / s, g = vec3(textureSize(t, 0)) * x.w * 0.5;
-  if (any(greaterThan(abs(q), g))) return length(max(abs(q) - 0.5 * x.xyz, 0.0)) * k;
-  return texture(t, q / (2.0 * g) + 0.5).r * k;
-}
-// x: (content box mm, cell mm); t: a baked group, (distance mm, rgb). Returns (rgb, distance).
-vec4 sdBaked(vec3 p, vec4 x, highp sampler3D t) {
-  vec3 g = vec3(textureSize(t, 0)) * x.w * 0.5;
-  if (any(greaterThan(abs(p), g))) return vec4(0.8, 0.8, 0.8, length(max(abs(p) - 0.5 * x.xyz, 0.0)));
-  vec4 v = texture(t, p / (2.0 * g) + 0.5);
-  return vec4(v.gba, v.r);
+  float m = min(s.x, min(s.y, s.z));
+  vec3 q = p / s, g = vec3(${volChain(k => `textureSize(uV${k}, 0)`)}) * x.w * 0.5;
+  if (any(greaterThan(abs(q), g))) return vec4(0.8, 0.8, 0.8, length(max(abs(q) - 0.5 * x.xyz, 0.0)) * m);
+  vec3 u = q / (2.0 * g) + 0.5;
+  vec4 v = ${volChain(k => `textureLod(uV${k}, u, 0.0)`)};
+  return vec4(v.gba, v.r * m);
 }
 `;
+
+/** `k == 0 ? f(0) : k == 1 ? f(1) : ... f(last)` over the 3D texture slots (samplers cannot be indexed). */
+function volChain(f) {
+  return Array.from({ length: MAX_MESH_TEX }, (_, k) => k).reverse()
+    .reduce((rest, k) => rest === null ? f(k) : `k == ${k} ? ${f(k)} : ${rest}`, null);
+}
 
 /** Texture slot of each text node (flattenNodes order), only for those that get one. */
 export function textSlots(nodes) {
@@ -355,45 +358,86 @@ export function meshSlots(nodes) {
 }
 
 /**
- * Shader source key: the generated code only depends on how many text / mesh textures it samples, so
- * adding, moving, grouping or deleting shapes never recompiles it.
+ * Shader source key: the generated code only depends on how many text textures it samples (the 3D slots
+ * are always there) and on its stack `levels`, so moving, folding or deleting shapes never recompiles it.
  */
-export function structureKey(nodes) {
-  return `${textSlots(nodes).size},${[...meshSlots(nodes).keys()].map(f => f.baked ? 'b' : 'm').join('')}`;
+export function structureKey(nodes, levels) {
+  return `${textSlots(nodes).size},${levels}`;
 }
 
 /** Most nodes (shapes and combinations) the preview draws; the rest are left out of the picture. */
 export const MAX_NODES = 512;
-/** Deepest nesting of combinations the preview supports. */
+/**
+ * Deepest nesting of combinations the preview supports; deeper ones are folded into the list around them.
+ * The shader is built for the depth a scene needs (see stackLevels): every level is GPU registers that
+ * every pixel holds, whether it uses them or not, and they cost a lot of speed.
+ */
 export const MAX_DEPTH = 12;
+/** Nodes the per-ray mask covers (the first in layout order); later ones are always walked, still culled by distance. */
+export const MASK_NODES = 128;
 
 /**
  * The scene as the shader walks it: depth first, and within every list the solids first, then the holes
- * (the order they are combined in). An entry is { node, op, pad, end, sphere }:
+ * (the order they are combined in). An entry is { node, op, pad, end, sphere, depth }:
  *   op      'union' | 'intersect', the list the node sits in
  *   end     combinations only: index just past the last entry inside it
  *   sphere  [x, y, z, r] world bounding sphere, r including every blend around it, for the nodes a ray
- *           that misses it can skip (shapes in a union list, holes anywhere); null for the others
+ *           that misses it can skip (shapes and combinations in a union list, holes anywhere); null for
+ *           the others. A skipped combination skips everything inside it.
+ *   depth   combinations open in the list it sits in (0 at top level)
+ * A sharp union of sharp solids inside a sharp union list is listed as its parts: the minimum does not
+ * care how it is grouped, and that way they need no level of the shader's stack.
  */
 export function layout(nodes) {
   const out = [];
-  const walk = (list, op, pad, depth) => {
+  const walk = (list, op, pad, k0, depth) => {
+    if (op === 'union') list = inline(list, k0);
     for (const o of [...list.filter(o => !o.hole), ...list.filter(o => o.hole)]) {
       const combo = isCombo(o);
       const e = { node: o, op, pad, end: 0, sphere: null, depth };
-      if (!combo && (op === 'union' || o.hole)) {
-        const b = shapeBounds(o);
-        e.sphere = [...b.lo.map((v, i) => (v + b.hi[i]) / 2), Math.hypot(...o.half) + Math.max(o.blend || 0, pad) + 0.01];
+      if (op === 'union' || o.hole) {
+        const k = Math.max(o.blend || 0, pad) + 0.01;
+        if (!combo) {
+          const b = shapeBounds(o);
+          e.sphere = [...b.lo.map((v, i) => (v + b.hi[i]) / 2), Math.hypot(...o.half) + k];
+        } else {
+          // Holes only remove material, so the solids' box (padded by the blends inside) bounds it all.
+          const b = sceneBounds(o.children, o.type, o.blend || 0);
+          if (b) e.sphere = [...b.lo.map((v, i) => (v + b.hi[i]) / 2), Math.hypot(...b.hi.map((v, i) => v - b.lo[i])) / 2 + k];
+        }
       }
       out.push(e);
       if (combo) {
-        walk(o.children, o.type, Math.max(pad, o.blend || 0), depth + 1);
+        walk(o.children, o.type, Math.max(pad, o.blend || 0), o.blend || 0, depth + 1);
         e.end = out.length;
       }
     }
   };
-  walk(nodes, 'union', 0, 0);
+  walk(nodes, 'union', 0, 0, 0);
   return out;
+}
+
+/** A union list (joints at least `k0`) with its sharp unions of sharp solids replaced by their parts. */
+function inline(list, k0) {
+  return list.flatMap(o => k0 === 0 && o.type === 'union' && !o.hole && !(o.blend > 0) &&
+    o.children.every(c => !c.hole && !(c.blend > 0)) ? inline(o.children, k0) : [o]);
+}
+
+/**
+ * Levels of the shader's stack the nodes need: one per combination open at once, as layout lists them.
+ * Only type, hole, blend and children are read.
+ */
+export function stackDepth(nodes, op = 'union', k0 = 0) {
+  const list = op === 'union' ? inline(nodes, k0) : nodes;
+  return list.reduce((m, o) => isCombo(o) ? Math.max(m, 1 + stackDepth(o.children, o.type, o.blend || 0)) : m, 0);
+}
+
+/**
+ * Stack levels to build the shader with for a scene that needs `depth`: a few sizes only, so that a scene
+ * growing a level now and then does not recompile every time.
+ */
+export function stackLevels(depth) {
+  return [2, 4, 8, MAX_DEPTH].find(n => n >= Math.min(depth, MAX_DEPTH));
 }
 
 /**
@@ -409,87 +453,92 @@ export function layout(nodes) {
  * in the mask `gM` is clear are skipped: setRay / setPoint fill it for a ray / for the neighbourhood of
  * a point. `gCap` caps the distances that matter (grid baking).
  */
-export function buildGLSL(nodes) {
-  const tex = textSlots(nodes), vol = meshSlots(nodes);
-  const cases = [
-    ...[...tex.values()].map(k => `else if (ty == ${10 + k}) di = sdText(q, hh.xyz, nf(6, i), uT${k});`),
-    ...[...vol].map(([f, k]) => f.baked
-      ? `else if (ty == ${30 + k}) { vec4 b = sdBaked(q, nf(6, i), uV${k}); di = b.w; ci = b.rgb; }`
-      : `else if (ty == ${20 + k}) di = sdMesh(q, hh.xyz, nf(6, i), uV${k});`),
-  ];
+export function buildGLSL(nodes, levels) {
+  const tex = textSlots(nodes);
+  const cases = [...tex.values()].map(k => `else if (ty == ${10 + k}) di = sdText(q, hh.xyz, nf(6, i), uT${k});`);
   return `
-#define MAXD ${MAX_DEPTH}
-#define MASKW ${MAX_NODES / 32}
+#define MAXD ${levels}
+#define MASKN ${MASK_NODES}
+#define MASKW ${MASK_NODES / 32}
 uniform highp sampler2D uNodes;
 uniform int uCount;
 ${[...tex.values()].map(k => `uniform sampler2D uT${k};`).join('\n')}
-${[...vol.values()].map(k => `uniform highp sampler3D uV${k};`).join('\n')}
+${Array.from({ length: MAX_MESH_TEX }, (_, k) => `uniform highp sampler3D uV${k};`).join('\n')}
 uint gM[MASKW];
 float gCap = 1e10;
 ${GLSL_LIB}
 vec4 nf(int k, int i) { return texelFetch(uNodes, ivec2(k, i), 0); }
 
-// Fold one more member (distance di, colour ci) into a list's running result.
-void joint(inout float d, inout vec3 c, inout float n, float inter, float hole, float di, vec3 ci, float k) {
+// Fold one more member (distance di, colour ci) into a list's running result. An intersection starts out as
+// everything (-1e10): its first solid then comes through unchanged, as the smooth max of -1e10 and di is di.
+void joint(inout float d, inout vec3 c, float inter, float hole, float di, vec3 ci, float k) {
   k = max(k, 1e-6);
   float h;
   if (hole > 0.5) {
+    if (d < -1e9) return;   // an intersection without solids: it stays empty, whatever it cuts
     float b = -di;
     h = clamp(0.5 - 0.5 * (b - d) / k, 0.0, 1.0);
     d = mix(b, d, h) + k * h * (1.0 - h);
     return;
   }
   if (inter > 0.5) {
-    if (n < 0.5) { d = di; c = ci; }
-    else {
-      h = clamp(0.5 - 0.5 * (di - d) / k, 0.0, 1.0);
-      d = mix(di, d, h) + k * h * (1.0 - h); c = mix(ci, c, h);
-    }
+    h = clamp(0.5 - 0.5 * (di - d) / k, 0.0, 1.0);
+    d = mix(di, d, h) + k * h * (1.0 - h);
   } else {
     h = clamp(0.5 + 0.5 * (di - d) / k, 0.0, 1.0);
-    d = mix(di, d, h) - k * h * (1.0 - h); c = mix(ci, c, h);
+    d = mix(di, d, h) - k * h * (1.0 - h);
   }
-  n += 1.0;
+  c = mix(ci, c, h);
 }
 
 vec4 mapC(vec3 p) {
-  float d = 1e10, n = 0.0, inter = 0.0, k0 = 0.0;
+  // The list being folded: distance, colour, the blend all its joints take at least (k0), intersection or not.
+  float d = 1e10, inter = 0.0, k0 = 0.0;
   vec3 c = vec3(0.8);
   int lvl = 0, curEnd = 1 << 30;
-  float sd[MAXD], sn[MAXD], si[MAXD], sk[MAXD];
-  vec3 sc[MAXD];
-  int sIdx[MAXD], sEnd[MAXD];
+  // Per open combination, the list around it: (distance, k0, end, intersection) and (colour, radius the
+  // combination joins it with, negative for a hole). Kept this small on purpose: every pixel holds it all.
+  vec4 sA[MAXD], sB[MAXD];
   vec4 pp = vec4(p, 1.0);
   for (int i = 0; i <= uCount; i++) {
     // Leave the combinations that end here: their result joins the list around them.
     while (lvl > 0 && i >= curEnd) {
       lvl--;
-      vec4 ce = nf(4, sIdx[lvl]);
-      int cfl = int(nf(5, sIdx[lvl]).w);
-      float dc = d; vec3 cc = c;
-      d = sd[lvl]; c = sc[lvl]; n = sn[lvl]; inter = si[lvl]; k0 = sk[lvl]; curEnd = sEnd[lvl];
-      joint(d, c, n, inter, (cfl & 1) != 0 ? 1.0 : 0.0, dc, cc, max(ce.x, k0));
+      float dc = d < -1e9 ? 1e10 : d;   // an intersection without solids is empty
+      vec3 cc = c;
+      vec4 a = sA[lvl], b = sB[lvl];
+      d = a.x; k0 = a.y; curEnd = int(a.z); inter = a.w; c = b.rgb;
+      joint(d, c, inter, b.w < 0.0 ? 1.0 : 0.0, dc, cc, abs(b.w));
     }
     if (i == uCount) break;
-    if ((gM[i >> 5] & (1u << uint(i & 31))) == 0u) continue;
-    vec4 f = nf(5, i);
+    if (i < MASKN && (gM[i >> 5] & (1u << uint(i & 31))) == 0u) continue;
+    // Too far to change the result (the sphere radius already holds every blend that reaches it): skip the
+    // node, a combination with everything inside it. Two texel reads decide, so far nodes stay cheap.
+    vec4 s = nf(7, i), f = nf(5, i);
     int fl = int(f.w);
+    bool hole = (fl & 1) != 0;
+    if (s.w >= 0.0) {
+      float lb = length(p - s.xyz) - s.w, dm = min(d, gCap);
+      if (hole ? lb >= -dm : (inter < 0.5 && lb >= dm)) {
+        if ((fl & 2) != 0) i = int(nf(6, i).x) - 1;
+        continue;
+      }
+    }
     vec4 e = nf(4, i);
     if ((fl & 2) != 0) {
-      if (lvl >= MAXD - 1) continue;
-      sd[lvl] = d; sc[lvl] = c; sn[lvl] = n; si[lvl] = inter; sk[lvl] = k0; sEnd[lvl] = curEnd; sIdx[lvl] = i;
+      if (lvl >= MAXD) continue;
+      float kj = max(max(e.x, k0), 1e-6);
+      sA[lvl] = vec4(d, k0, float(curEnd), inter);
+      sB[lvl] = vec4(c, hole ? -kj : kj);
       lvl++;
       curEnd = int(nf(6, i).x);
-      d = 1e10; c = vec3(0.8); n = 0.0; inter = (fl & 4) != 0 ? 1.0 : 0.0; k0 = e.x;
+      inter = (fl & 4) != 0 ? 1.0 : 0.0;
+      d = inter > 0.5 ? -1e10 : 1e10; c = vec3(0.8); k0 = e.x;
       continue;
     }
     vec4 hh = nf(3, i);
     vec3 q = vec3(dot(nf(0, i), pp), dot(nf(1, i), pp), dot(nf(2, i), pp));
-    bool hole = (fl & 1) != 0;
     float k = max(max(e.x, k0), 1e-6);
-    // Too far to change the result (a blend reaches k at most): skip the primitive.
-    float lb = length(q) - length(hh.xyz), dm = min(d, gCap);
-    if (hole ? lb >= k - dm : (inter < 0.5 && lb >= dm + k)) continue;
     float di;
     vec3 ci = f.rgb;
     int ty = int(hh.w + 0.5);
@@ -497,31 +546,43 @@ vec4 mapC(vec3 p) {
     else if (ty == 2) di = sdCylinder(q, hh.xyz, 0.0);
     else if (ty == 3) di = sdCone(q, hh.xyz, 0.0);
     else if (ty == 4) di = sdTorus(q, hh.xyz, 0.0);
+    else if (ty >= 20) { vec4 v = sdVol(ty % 10, q, hh.xyz, nf(6, i)); di = v.w; if (ty >= 30) ci = v.rgb; }
     ${cases.join('\n    ')}
     else if (e.z > 3.5) di = sdBoxEdges(q, hh.xyz, nf(8, i), nf(9, i), nf(10, i));
     else di = sdBoxAxis(q, hh.xyz, e.y, e.z);
-    joint(d, c, n, inter, hole ? 1.0 : 0.0, di, ci, k);
+    joint(d, c, inter, hole ? 1.0 : 0.0, di, ci, k);
   }
   return vec4(c, d);
 }
 float map(vec3 p) { return mapC(p).w; }
 
+// Leave node i out of the mask: returns the last entry it takes along (a combination everything inside it,
+// whose bits stay clear). A combination reaching past the entries the mask covers stays in instead, as
+// those are always walked and would be folded into the list around it.
+int maskOut(int i) {
+  int last = (int(nf(5, i).w) & 2) != 0 ? int(nf(6, i).x) - 1 : i;
+  if (last < MASKN) return last;
+  gM[i >> 5] |= 1u << uint(i & 31);
+  return i;
+}
 // Mask for a ray: the nodes it passes near (or that cannot be skipped).
 void setRay(vec3 ro, vec3 rd) {
   for (int w = 0; w < MASKW; w++) gM[w] = 0u;
-  for (int i = 0; i < uCount; i++) {
+  for (int i = 0; i < min(uCount, MASKN); i++) {
     vec4 s = nf(7, i);
     bool on = s.w < 0.0;
     if (!on) { vec3 v = s.xyz - ro; float t = dot(v, rd); on = dot(v, v) - t * t < s.w * s.w; }
     if (on) gM[i >> 5] |= 1u << uint(i & 31);
+    else i = maskOut(i);
   }
 }
 // Mask for everything within \`reach\` of a point.
 void setPoint(vec3 p, float reach) {
   for (int w = 0; w < MASKW; w++) gM[w] = 0u;
-  for (int i = 0; i < uCount; i++) {
+  for (int i = 0; i < min(uCount, MASKN); i++) {
     vec4 s = nf(7, i);
     if (s.w < 0.0 || length(p - s.xyz) < s.w + reach) gM[i >> 5] |= 1u << uint(i & 31);
+    else i = maskOut(i);
   }
 }
 `;
