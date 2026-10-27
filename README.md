@@ -2,6 +2,13 @@
 
 Efesto is a Tinkercad-style 3D editor built on signed distance fields (SDFs), with STL export.
 
+This project was developed with the assistance of Claude, large language model by Anthropic.
+
+<img width="1390" height="860" alt="image" src="https://github.com/user-attachments/assets/a45c173f-4d53-4123-bc0d-b380b00fc7f4" />
+
+The user interface is currently available in Italian only.
+
+
 ## Install as an app
 
 Open the editor in Chrome or Edge and click the **Install** icon at the right of the address bar (in Safari:
