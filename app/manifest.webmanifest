@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "SDF CAD",
-  "short_name": "SDF CAD",
+  "name": "Efesto",
+  "short_name": "Efesto",
   "description": "Editor 3D a campi di distanza (SDF) con esportazione STL",
   "lang": "it",
   "start_url": "./",

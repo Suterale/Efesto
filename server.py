@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local server for SDF CAD: serves app/ and keeps project files in progetti/, so Salva can overwrite
+"""Local server for Efesto: serves app/ and keeps project files in progetti/, so Salva can overwrite
 the same file from any browser. Usage: python3 server.py [port]"""
 import json
 import os
@@ -95,5 +95,5 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    print(f'SDF CAD su http://127.0.0.1:{PORT}/  (progetti in {PROJECTS})')
+    print(f'Efesto su http://127.0.0.1:{PORT}/  (progetti in {PROJECTS})')
     ThreadingHTTPServer(('127.0.0.1', PORT), Handler).serve_forever()

@@ -2223,12 +2223,12 @@ function commit() {
 
 // ---------------------------------------------------------------- project file
 
-// Where Salva writes. Started from server.py (Avvia CAD), projects live in the progetti/ folder and are
+// Where Salva writes. Started from server.py (Avvia Efesto), projects live in the progetti/ folder and are
 // overwritten in place from any browser. Without it: the File System Access API where the browser has it
 // (Chrome, Edge, Arc…), else a download under the remembered name.
 const canPickFiles = 'showSaveFilePicker' in window;
 let saveTarget = canPickFiles ? 'disk' : 'download';   // 'server' | 'disk' | 'download', settled at startup
-const FILE_TYPES = [{ description: 'Progetto SDF CAD', accept: { 'application/json': ['.json'] } }];
+const FILE_TYPES = [{ description: 'Progetto Efesto', accept: { 'application/json': ['.json'] } }];
 const EMPTY_STATE = JSON.stringify({ version: 2, nextId: 1, objects: [] });
 // The file the project belongs to: its name, where it lives (a saveTarget, or null if Salva has to ask)
 // and, on disk, its handle.
@@ -2243,7 +2243,7 @@ function updateDocName() {
   const el = document.getElementById('doc-name');
   el.textContent = name + mark;
   el.title = fileWhere === 'server' ? `progetti/${fileName}` : 'File del progetto';
-  document.title = `${name}${mark} — SDF CAD`;
+  document.title = `${name}${mark} — Efesto`;
 }
 
 /** The current state is what is in the file now (remembered across reloads). */
@@ -2314,7 +2314,7 @@ async function saveProject({ as = false } = {}) {
   markSaved(name, saveTarget, saveTarget === 'disk' ? handle : null);
   status(saveTarget === 'server' ? `Salvato in progetti/${name}`
     : saveTarget === 'disk' ? `Salvato ${name}`
-    : `Scaricato ${name} (per sovrascrivere sempre lo stesso file avvia il CAD con "Avvia CAD")`);
+    : `Scaricato ${name} (per sovrascrivere sempre lo stesso file avvia Efesto con "Avvia Efesto")`);
 }
 
 // ---- Apri: the projects folder in a list, or the browser's file dialog.

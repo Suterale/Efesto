@@ -1,6 +1,6 @@
 # Third-party licenses
 
-SDF CAD itself is MIT licensed (see `LICENSE` in the repository root). It bundles the following.
+Efesto itself is MIT licensed (see `LICENSE` in the repository root). It bundles the following.
 
 ## three.js (r160): `three.module.js`, `addons/OrbitControls.js`, `addons/TransformControls.js`
 
