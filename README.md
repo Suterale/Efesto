@@ -2,6 +2,12 @@
 
 A Tinkercad-style 3D editor built on signed distance fields (SDFs), with STL export.
 
+## Install as an app
+
+Open the editor in Chrome or Edge and click the **Install** icon at the right of the address bar (in Safari:
+**File → Add to Dock**). SDF CAD then has its own icon and window, and works offline. Projects are saved as
+`.json` files wherever you choose.
+
 ## Editor (app/)
 
 Double-click `Avvia CAD.command`, or run:

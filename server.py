@@ -20,6 +20,8 @@ HOSTS = {f'127.0.0.1:{PORT}', f'localhost:{PORT}'}
 
 
 class Handler(SimpleHTTPRequestHandler):
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, '.webmanifest': 'application/manifest+json'}
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(APP), **kwargs)
 
