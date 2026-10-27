@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="it" data-theme="win95">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SDF CAD</title>
+<style>
+  @font-face { font-family: "VT323"; src: url("./vendor/fonts/VT323-Regular.ttf") format("truetype"); font-display: block; }
+  @font-face { font-family: "Orbitron"; src: url("./vendor/fonts/Orbitron.ttf") format("truetype"); font-weight: 400 900; font-display: swap; }
+  @font-face { font-family: "Rajdhani"; src: url("./vendor/fonts/Rajdhani-Medium.ttf") format("truetype"); font-weight: 400 500; font-display: swap; }
+  @font-face { font-family: "Rajdhani"; src: url("./vendor/fonts/Rajdhani-SemiBold.ttf") format("truetype"); font-weight: 600 800; font-display: swap; }
+  @font-face { font-family: "Space Grotesk"; src: url("./vendor/fonts/SpaceGrotesk.ttf") format("truetype"); font-weight: 300 700; font-display: swap; }
+  /* Fonts for 3D text (serif / sans / mono, all SIL OFL) */
+  @font-face { font-family: "Inter"; src: url("./vendor/fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+  @font-face { font-family: "Lora"; src: url("./vendor/fonts/Lora.ttf") format("truetype"); font-weight: 400 700; font-display: swap; }
+  @font-face { font-family: "JetBrains Mono"; src: url("./vendor/fonts/JetBrainsMono.ttf") format("truetype"); font-weight: 100 800; font-display: swap; }
+  :root {
+    --r: 0px; --font: "VT323", ui-monospace, Menlo, monospace; --fs: 18px; --lh: 1.15; --smooth: none;
+    --title2: #1084d0; --h3-mark: "▪ "; --focus-bg: #ffffe1; --hint-bg: #ffffe1; --hint-shadow: 0 0 0 1px #000, 3px 3px 0 1px rgba(0,0,0,.35);
+    --ax-x: #aa0000; --ax-y: #00aa00; --ax-z: #0000aa; --icon-line: #000; --icon-sw: 1;
+    --marquee-a: #000; --marquee-b: #fff; --view-bg: var(--desk);
+    --dis-shadow: 1px 1px var(--hi);
+    --active-bg: repeating-conic-gradient(var(--face) 0 25%, var(--hi) 0 50%) 0 0 / 2px 2px;
+    --track-bg: repeating-conic-gradient(var(--face) 0 25%, var(--hi) 0 50%) 0 0 / 2px 2px;
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='20' shape-rendering='crispEdges'%3E%3Crect width='16' height='20' fill='%23c0c0c0'/%3E%3Crect x='15' width='1' height='20'/%3E%3Crect y='19' width='16' height='1'/%3E%3Crect x='14' y='1' width='1' height='18' fill='%23808080'/%3E%3Crect x='1' y='18' width='14' height='1' fill='%23808080'/%3E%3Cpath d='M4 8h7v1H4zM5 9h5v1H5zM6 10h3v1H6zM7 11h1v1H7z'/%3E%3C/svg%3E");
+    --face: #c0c0c0; --hi: #ffffff; --lite: #dfdfdf; --shade: #808080; --dark: #000000;
+    --text: #000000; --muted: #404040; --title: #000080; --title-text: #ffffff;
+    --field: #ffffff; --desk: #008080; --danger: #aa0000;
+    --raised: inset -1px -1px var(--dark), inset 1px 1px var(--hi), inset -2px -2px var(--shade), inset 2px 2px var(--lite);
+    --sunken: inset -1px -1px var(--hi), inset 1px 1px var(--shade), inset -2px -2px var(--lite), inset 2px 2px var(--dark);
+    --pressed: inset -1px -1px var(--hi), inset 1px 1px var(--dark), inset -2px -2px var(--lite), inset 2px 2px var(--shade);
+  }
+  * { box-sizing: border-box; border-radius: var(--r); }
+  html, body { margin: 0; height: 100%; font: var(--fs)/var(--lh) var(--font); color: var(--text); background: var(--face); overflow: hidden; -webkit-font-smoothing: var(--smooth); }
+  button, select, input { font: inherit; color: inherit; }
+  ::selection { background: var(--title); color: var(--title-text); }
+  #app { display: grid; grid-template: "top top top" auto "left view right" 1fr "left status right" 26px / 204px 1fr 290px; height: 100%; gap: 0; }
+
+  #top { grid-area: top; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; min-height: 40px; padding: 2px 6px; background: var(--face); box-shadow: inset 0 -1px var(--shade), inset 0 -2px var(--hi); }
+  #top .title { white-space: nowrap; display: flex; align-items: center; gap: 6px; font-size: 22px; margin-right: 8px; letter-spacing: 1px; }
+  #top .title::before { content: ""; width: 14px; height: 14px; background: conic-gradient(var(--title) 0 25%, #ff5555 0 50%, var(--title) 0 75%, #ffff55 0); image-rendering: pixelated; box-shadow: 0 0 0 1px var(--dark); }
+  #top #doc-name { flex: none; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; margin-right: 6px; }
+  #top .sep { width: 2px; height: 26px; box-shadow: inset 1px 0 var(--shade), inset -1px 0 var(--hi); margin: 0 4px; }
+  #top .spacer { flex: 1; }
+  #top .break { flex: 0 0 100%; height: 0; }
+  .btn { border: 0; background: var(--btn-bg, var(--face)); box-shadow: var(--raised); padding: 3px 10px 2px; cursor: pointer; white-space: nowrap; min-height: 28px; }
+  .btn:active, .btn.active { box-shadow: var(--pressed); padding: 4px 9px 1px 11px; }
+  .btn:hover:not(:disabled):not(.active) { background: var(--btn-hover, var(--btn-bg, var(--face))); }
+  .btn.active { background: var(--active-bg); color: var(--active-text, inherit); }
+  .btn:focus-visible { outline: 1px dotted var(--dark); outline-offset: -5px; }
+  .btn.primary { box-shadow: 0 0 0 1px var(--dark), var(--raised); font-weight: normal; }
+  .btn.danger { color: var(--danger); }
+  .btn:disabled { color: var(--shade); text-shadow: var(--dis-shadow); cursor: default; box-shadow: var(--raised); padding: 3px 10px 2px; }
+  select { appearance: none; -webkit-appearance: none; border: 0; box-shadow: var(--sunken); padding: 2px 24px 1px 5px; background: var(--field) var(--select-arrow) no-repeat right 2px center; cursor: pointer; min-height: 26px; }
+  #theme { width: 112px; }
+  label.inline { display: flex; align-items: center; gap: 6px; }
+
+  #left, #right { background: var(--face); min-height: 0; }
+  #left { grid-area: left; display: flex; flex-direction: column; padding: 4px; gap: 4px; overflow-y: auto; }
+  #right { grid-area: right; overflow-y: auto; padding: 4px; }
+  h3 { margin: 0; padding: 2px 6px 1px; font-size: 18px; font-weight: normal; color: var(--title-text); background: var(--h3-bg, linear-gradient(90deg, var(--title), var(--title2))); letter-spacing: .5px; }
+  h3::before { content: var(--h3-mark); }
+  .pane { box-shadow: var(--raised); padding: 3px; display: flex; flex-direction: column; min-height: 0; }
+  .pane { flex-shrink: 0; }
+  .pane.grow { flex: 1 0 96px; }
+  #shapes { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 4px 1px 1px; }
+  .shape-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 2px 3px; border: 0; background: var(--btn-bg, var(--face)); box-shadow: var(--raised); cursor: pointer; line-height: 1; }
+  .shape-btn:active { box-shadow: var(--pressed); }
+  .shape-btn:hover { background: var(--lite); }
+  .shape-btn pre { margin: 0; font: inherit; line-height: .95; white-space: pre; }
+  .shape-btn .vicon { width: 32px; height: 32px; }
+  .shape-btn.hole { --hole: 1; }
+  .shape-btn svg { width: 32px; height: 32px; image-rendering: pixelated; shape-rendering: crispEdges; }
+  #list { flex: 1; overflow-y: auto; margin: 4px 1px 1px; background: var(--field); box-shadow: var(--sunken); padding: 3px 2px; }
+  .item { display: flex; align-items: center; gap: 6px; padding: 0 4px; cursor: pointer; }
+  .item.sel { background: var(--sel-bg, var(--title)); color: var(--sel-text, var(--title-text)); }
+  .swatch { width: 12px; height: 12px; flex: none; box-shadow: 0 0 0 1px var(--dark); }
+  .item.sel .swatch { box-shadow: 0 0 0 1px var(--hi); }
+  .swatch.img { background: var(--field) center / cover no-repeat; }
+  .swatch.hole { background: repeating-conic-gradient(var(--shade) 0 25%, var(--hi) 0 50%) 0 0 / 4px 4px !important; }
+  .item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty-note { color: var(--muted); padding: 4px 6px; }
+
+  #view { grid-area: view; position: relative; min-width: 0; min-height: 0; margin: 2px; box-shadow: var(--sunken); padding: 2px; background: var(--view-bg); overflow: hidden; }
+  #view canvas { display: block; width: 100%; height: 100%; outline: none; image-rendering: pixelated; }
+  #viewcube { position: absolute; top: 8px; left: 8px; display: flex; gap: 2px; }
+  #viewcube .btn { padding: 0 8px; min-width: 52px; min-height: 24px; font-size: 11px; line-height: 1; }
+  #viewcube .btn.active { box-shadow: var(--pressed); }
+  #hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  #hint span { background: var(--hint-bg); color: var(--hint-text, var(--text)); padding: 3px 8px; box-shadow: var(--hint-shadow); }
+  #marquee { position: absolute; display: none; pointer-events: none; border: 1px dotted var(--marquee-a); outline: 1px dotted var(--marquee-b); outline-offset: -2px; }
+  :is(#busy, #files) { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: repeating-conic-gradient(rgba(0,0,0,.25) 0 25%, transparent 0 50%) 0 0 / 4px 4px; }
+  :is(#busy, #files) .dlg { background: var(--face); box-shadow: 0 0 0 1px var(--dark), var(--raised); padding: 3px; min-width: 260px; }
+  #busy .dlg div { padding: 14px 16px; display: flex; align-items: center; gap: 10px; }
+  #files .dlg { min-width: 340px; max-width: min(520px, 90%); }
+  #files-list { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 4px; max-height: 50vh; overflow: auto; }
+  #files-list .file-row { display: flex; justify-content: space-between; gap: 16px; text-align: left; }
+  #files-list .file-row span { overflow: hidden; text-overflow: ellipsis; }
+  #files-list .file-row small { color: var(--muted); flex: none; }
+  #files .files-actions { display: flex; gap: 6px; padding: 8px 12px 10px; }
+  #files .files-actions .spacer { flex: 1; }
+  #busy .dlg div::before { content: ""; width: 16px; height: 16px; background: repeating-linear-gradient(90deg, var(--title) 0 6px, transparent 6px 8px); animation: pixbar .6s steps(4) infinite; }
+  @keyframes pixbar { to { background-position: 8px 0; } }
+  #status { grid-area: status; display: flex; align-items: center; gap: 4px; padding: 2px 2px 2px; background: var(--face); white-space: nowrap; overflow: hidden; }
+  #status > span { flex: 1; box-shadow: inset 1px 1px var(--shade), inset -1px -1px var(--hi); padding: 1px 6px 0; overflow: hidden; text-overflow: ellipsis; }
+
+  #preview { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: repeating-conic-gradient(rgba(0,0,0,.25) 0 25%, transparent 0 50%) 0 0 / 4px 4px; }
+  #preview .dlg { width: min(1100px, 96vw); height: min(720px, 92vh); display: flex; flex-direction: column; background: var(--face); box-shadow: 0 0 0 1px var(--dark), var(--raised); padding: 3px; }
+  #preview .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 270px; gap: 4px; padding-top: 4px; }
+  #pv-canvas { position: relative; min-width: 0; min-height: 0; box-shadow: var(--sunken); background: var(--view-bg); overflow: hidden; }
+  #pv-canvas canvas { display: block; outline: none; }
+  #pv-side { overflow-y: auto; padding: 2px 4px; display: flex; flex-direction: column; gap: 10px; }
+  #pv-side h4 { margin: 0 0 4px; font-weight: normal; box-shadow: 0 1px var(--shade), 0 2px var(--hi); padding-bottom: 2px; }
+  #pv-side label.chk { display: flex; align-items: center; gap: 6px; margin: 2px 0; cursor: pointer; }
+  #pv-stats { box-shadow: var(--sunken); background: var(--field); padding: 4px 6px; line-height: 1.3; }
+  #pv-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-top: 6px; }
+  #pv-foot { display: flex; gap: 6px; justify-content: flex-end; padding-top: 4px; }
+  #pv-busy { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.3); }
+  #pv-busy span { background: var(--face); box-shadow: 0 0 0 1px var(--dark), var(--raised); padding: 10px 16px; }
+  @media (max-width: 800px) { #preview .body { grid-template-columns: 1fr; grid-template-rows: 1fr auto; } }
+
+  #props { padding: 6px 4px 6px; }
+  .row { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 6px; margin: 5px 0; }
+  .row > span { color: var(--text); }
+  .xyz { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .xyz input, .row input[type=text], .row input[type=number] { width: 100%; border: 0; box-shadow: var(--sunken); padding: 2px 4px 1px; background: var(--field); min-height: 24px; outline: none; }
+  .row textarea { display: block; width: 100%; border: 0; box-shadow: var(--sunken); padding: 2px 4px 1px; background: var(--field); min-height: 24px; outline: none; resize: vertical; font: inherit; color: inherit; }
+  .row select { width: 100%; }
+  .xyz input:focus, .row input:focus, .row textarea:focus { background: var(--focus-bg); }
+  .xyz label { position: relative; }
+  .xyz label::before { content: attr(data-axis); position: absolute; left: 5px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+  .xyz label[data-axis=X]::before { color: var(--ax-x); }
+  .xyz label[data-axis=Y]::before { color: var(--ax-y); }
+  .xyz label[data-axis=Z]::before { color: var(--ax-z); }
+  .row .xyz input { padding-left: 16px; }
+  .row > * { min-width: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+  .seg button { border: 0; background: var(--btn-bg, var(--face)); box-shadow: var(--raised); padding: 3px 4px 1px; cursor: pointer; }
+  .seg.three { grid-template-columns: repeat(3, 1fr); margin: 6px 0; }
+  .seg button { display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .seg button:disabled { color: var(--shade); text-shadow: 1px 1px var(--hi); cursor: default; }
+  .seg.three button { flex-direction: column; gap: 2px; padding: 4px 2px 2px; line-height: 1; }
+  .cicon { width: 12px; height: 12px; flex: none; image-rendering: pixelated; }
+  .seg .cicon { width: 24px; height: 24px; }
+  .note { color: var(--muted); line-height: 1.15; margin: 4px 0 6px; white-space: normal; }
+  .fold { width: 11px; height: 11px; flex: none; border: 0; padding: 0; margin-right: -2px; font-size: 12px; line-height: 9px; background: var(--field); box-shadow: 0 0 0 1px var(--shade); cursor: pointer; }
+  .item.sel .fold { color: var(--text); }
+  #props .seg.tri { grid-template-columns: repeat(3, 1fr); gap: 2px; margin: 0; }
+  #props .seg.tri button { padding: 2px 0 1px; min-width: 0; }
+  .seg button.on { box-shadow: var(--pressed); background: var(--active-bg); color: var(--active-text, inherit); }
+  .slider { display: grid; grid-template-columns: 1fr 52px; gap: 6px; align-items: center; }
+  input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; min-width: 0; width: 100%; margin: 0; height: 22px; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; background: var(--dark); box-shadow: 0 1px var(--hi), 0 -1px var(--shade); }
+  input[type=range]::-moz-range-track { height: 4px; background: var(--dark); box-shadow: 0 1px var(--hi), 0 -1px var(--shade); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 20px; margin-top: -8px; background: var(--face); box-shadow: var(--raised); border: 0; }
+  input[type=range]::-moz-range-thumb { width: 11px; height: 20px; background: var(--face); box-shadow: var(--raised); border: 0; border-radius: 0; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 10px; }
+  input[type=color] { -webkit-appearance: none; appearance: none; width: 100%; height: 26px; border: 0; box-shadow: var(--sunken); padding: 4px; background: var(--field); cursor: pointer; }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type=color]::-webkit-color-swatch { border: 1px solid var(--dark); }
+  input[type=color]::-moz-color-swatch { border: 1px solid var(--dark); }
+  input:disabled { color: var(--shade); background: var(--face) !important; }
+  kbd { font: inherit; background: var(--face); box-shadow: var(--raised); padding: 0 5px; display: inline-block; line-height: 18px; }
+  .help { padding: 6px 4px 2px; line-height: 1.45; white-space: nowrap; }
+  #keys-menu { position: relative; }
+  #keys-panel { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 20; background: var(--face); box-shadow: var(--raised), 0 6px 18px rgba(0,0,0,.35); padding: 4px 6px; }
+  #keys-panel[hidden] { display: none; }
+  .help kbd + kbd { margin-left: 2px; }
+
+  .vicon .f { fill: var(--ic); }
+  .vicon .l { fill: color-mix(in srgb, var(--ic) 55%, #fff); }
+  .vicon .d { fill: color-mix(in srgb, var(--ic) 65%, #000); }
+  .vicon path, .vicon ellipse, .vicon circle, .vicon rect { stroke: var(--icon-line); stroke-width: var(--icon-sw); stroke-linejoin: round; }
+  .vicon.hole .f, .vicon.hole .l, .vicon.hole .d { fill: color-mix(in srgb, var(--ic) 12%, transparent); stroke-dasharray: 2 1.5; }
+  .cicon.txt { width: auto; height: auto; font-weight: bold; }
+
+  ::-webkit-scrollbar { width: 16px; height: 16px; }
+  ::-webkit-scrollbar-track { background: var(--track-bg); }
+  ::-webkit-scrollbar-thumb { background: var(--face); box-shadow: var(--raised); }
+  ::-webkit-scrollbar-button { display: none; }
+</style>
+<link rel="stylesheet" href="./css/themes.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <span class="title">SDF CAD</span>
+    <span id="doc-name" title="File del progetto"></span>
+    <button class="btn" id="btn-new" title="Nuovo progetto">Nuovo</button>
+    <button class="btn" id="btn-open" title="Apri progetto (Ctrl/Cmd+O)">Apri</button>
+    <button class="btn" id="btn-save" title="Salva progetto (Ctrl/Cmd+S)">Salva</button>
+    <button class="btn" id="btn-save-as" title="Salva con nome (Ctrl/Cmd+Shift+S)">Salva come…</button>
+    <input type="file" id="file-open" accept=".json,application/json" hidden>
+    <input type="file" id="file-image" accept="image/png,image/jpeg" multiple hidden>
+    <input type="file" id="file-stl" accept=".stl,model/stl" multiple hidden>
+    <span class="sep"></span>
+    <button class="btn" id="btn-undo" title="Annulla (Ctrl/Cmd+Z)">↶</button>
+    <button class="btn" id="btn-redo" title="Ripeti (Ctrl/Cmd+Shift+Z)">↷</button>
+    <span class="sep"></span>
+    <button class="btn" id="btn-pixel" title="Vista 3D a pixel grossi (P)">Pixel</button>
+    <button class="btn" id="btn-quality"></button>
+    <label class="inline">Stile
+      <select id="theme" title="Stile dell'interfaccia (T)"></select>
+    </label>
+    <div id="keys-menu">
+      <button class="btn" id="btn-keys" aria-haspopup="true" aria-expanded="false" title="Scorciatoie da tastiera">Scorciatoie ▾</button>
+      <div class="pane" id="keys-panel" hidden>
+        <div class="help">
+          <kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> sposta/ruota/scala<br>
+          <kbd>O</kbd> sposta il perno<br>
+          <kbd>X</kbd> assi globali ↔ locali<br>
+          <kbd>Shift</kbd>+scala: un solo lato<br>
+          <kbd>H</kbd> solido ↔ foro<br>
+          <kbd>D</kbd> appoggia · <kbd>P</kbd> pixel<br>
+          <kbd>V</kbd> qualità della vista<br>
+          <kbd>⇧D</kbd> appoggia sulla forma sotto<br>
+          <kbd>L</kbd> lay: faccia/vertice su faccia/vertice<br>
+          <kbd>⌘D</kbd> duplica<br>
+          <kbd>Shift</kbd>+clic multipla<br>
+          <kbd>⌘G</kbd> raggruppa<br>
+          <kbd>⌘⇧G</kbd> separa gruppo<br>
+          <kbd>Canc</kbd> elimina<br>
+          Trascina PNG/JPEG nella vista: immagine<br>
+          Mouse sx: seleziona (trascina = area)<br>
+          Rotella premuta: sposta vista<br>
+          Mouse dx: ruota vista
+        </div>
+      </div>
+    </div>
+    <span class="spacer"></span>
+    <label class="inline">Qualità STL
+      <select id="quality">
+        <option value="128">Bozza</option>
+        <option value="200" selected>Media</option>
+        <option value="300">Alta</option>
+        <option value="400">Molto alta</option>
+      </select>
+    </label>
+    <button class="btn primary" id="btn-export" title="Genera la mesh, mostra l'anteprima e permette di ottimizzare i triangoli prima di salvare">Esporta STL…</button>
+    <span class="break"></span>
+    <button class="btn active" data-mode="translate" title="Sposta (W)">Sposta</button>
+    <button class="btn" data-mode="rotate" title="Ruota (E)">Ruota</button>
+    <button class="btn" data-mode="scale" title="Ridimensiona (R)">Scala</button>
+    <button class="btn" data-mode="pivot" title="Sposta il perno (punto di rotazione e scala) senza muovere la forma (O)">Perno</button>
+    <button class="btn" id="btn-lay" title="Appoggia: clicca una faccia o un vertice, poi una faccia o un vertice di un'altra forma (L)">Lay</button>
+    <button class="btn" id="btn-space" title="Assi globali o locali dell'oggetto per spostare e ruotare (X)">Globale</button>
+    <label class="inline">Griglia
+      <select id="snap">
+        <option value="0">off</option>
+        <option value="0.5">0.5 mm</option>
+        <option value="1" selected>1 mm</option>
+        <option value="5">5 mm</option>
+        <option value="10">10 mm</option>
+      </select>
+    </label>
+  </div>
+
+  <div id="left">
+    <div class="pane">
+      <h3>Forme</h3>
+      <div id="shapes"></div>
+    </div>
+    <div class="pane grow">
+      <h3>Oggetti</h3>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <div id="view">
+    <div id="viewcube">
+      <button class="btn" data-view="top" title="Vista dall'alto (Numpad 7)">Sopra</button>
+      <button class="btn" data-view="bottom" title="Vista dal basso (Ctrl+Numpad 7)">Sotto</button>
+      <button class="btn" data-view="front" title="Vista frontale (Numpad 1)">Fronte</button>
+      <button class="btn" data-view="back" title="Vista da dietro (Ctrl+Numpad 1)">Dietro</button>
+      <button class="btn" data-view="left" title="Vista da sinistra (Ctrl+Numpad 3)">Sx</button>
+      <button class="btn" data-view="right" title="Vista da destra (Numpad 3)">Dx</button>
+      <button class="btn" data-view="iso" title="Isometrica dall'alto: clic ripetuto cambia angolo (Numpad 0)">Iso ↻</button>
+      <button class="btn" data-view="isobot" title="Isometrica dal basso: clic ripetuto cambia angolo (Ctrl+Numpad 0)">Iso ▼</button>
+      <button class="btn" id="btn-ortho" title="Prospettica ↔ ortogonale (Numpad 5)">Prosp.</button>
+    </div>
+    <div id="hint"><span>Aggiungi una forma dal pannello a sinistra, o trascina qui un'immagine</span></div>
+    <div id="busy"><div class="dlg"><h3>Esporta STL</h3><div>Generazione mesh…</div></div></div>
+    <div id="files"><div class="dlg">
+      <h3>Apri progetto</h3>
+      <div id="files-list"></div>
+      <div class="files-actions">
+        <button class="btn" id="files-other" title="Apri un progetto che non è nella cartella progetti">Altro file…</button>
+        <span class="spacer"></span>
+        <button class="btn" id="files-cancel">Annulla</button>
+      </div>
+    </div></div>
+  </div>
+
+  <div id="right">
+    <div class="pane">
+      <h3>Proprietà</h3>
+      <div id="props"><div class="empty-note">Nessun oggetto selezionato</div></div>
+    </div>
+  </div>
+
+  <div id="status"><span id="status-msg">Pronto</span></div>
+  <div id="preview">
+    <div class="dlg">
+      <h3>Anteprima mesh</h3>
+      <div class="body">
+        <div id="pv-canvas">
+          <div id="pv-busy"><span id="pv-busy-msg">Ottimizzo…</span></div>
+        </div>
+        <div id="pv-side">
+          <div>
+            <h4>Visualizzazione</h4>
+            <label class="chk"><input type="checkbox" id="pv-shade" checked> Superficie</label>
+            <label class="chk"><input type="checkbox" id="pv-wire" checked> Griglia dei triangoli</label>
+            <div class="note">Trascina per ruotare, rotella per zoom, tasto destro per spostare.</div>
+          </div>
+          <div>
+            <h4>Ottimizza triangoli</h4>
+            <div class="slider"><input type="range" id="pv-level" min="0" max="100" step="1" value="100"><span></span></div>
+            <div class="note" id="pv-target"></div>
+            <div id="pv-presets">
+              <button class="btn" data-pv-preset="100">Originale</button>
+              <button class="btn" data-pv-preset="75">Leggera</button>
+              <button class="btn" data-pv-preset="50">Media</button>
+              <button class="btn" data-pv-preset="25">Forte</button>
+            </div>
+            <div class="actions" style="margin-top:6px">
+              <button class="btn" id="pv-apply">Applica</button>
+              <button class="btn" id="pv-reset">Ripristina</button>
+            </div>
+            <div class="note">Le superfici piatte perdono molti triangoli, curve e spigoli ne perdono meno. Si parte sempre dalla mesh originale.</div>
+            <div class="note" id="pv-time"></div>
+          </div>
+          <div>
+            <h4>Mesh</h4>
+            <div id="pv-stats"></div>
+          </div>
+        </div>
+      </div>
+      <div id="pv-foot">
+        <button class="btn" id="pv-cancel">Annulla</button>
+        <button class="btn primary" id="pv-export">Esporta STL</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>

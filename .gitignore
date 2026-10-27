@@ -1,0 +1,23 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node (tests only, no dependencies yet)
+node_modules/
+
+# Generated output (examples/demo.py writes STLs here)
+out/
+*.stl
+
+# Personal projects saved by server.py
+progetti/
+
+# OS / editor
+.DS_Store
+._*
+.idea/
+.vscode/
+*.swp
